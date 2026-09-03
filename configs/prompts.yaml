@@ -1,0 +1,15 @@
+version: 1
+default_format: minimal
+
+prompts:
+  question_only: |-
+    Question: {question}
+
+    Answer the question and explain your reasoning briefly.
+
+  question_context: |-
+    Context: {context}
+
+    Question: {question}
+
+    Answer the question and explain your reasoning briefly.

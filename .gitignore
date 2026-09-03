@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# IDE and OS
+.DS_Store
+.idea/
+.vscode/
+
+# Personal AI continuity and learning notes (never commit)
+AGENTS.md
+decision.md
+handover.md
+flow.md
+PROJECT_PLAN.md
+PROJECT_START.md
+
+# Model and dataset caches
+.cache/
+huggingface/
+/models/
+checkpoints/
+
+# Data products
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Experiment products
+outputs/generations/*
+outputs/metrics/*
+outputs/tables/*
+outputs/plots/*
+!outputs/generations/.gitkeep
+!outputs/metrics/.gitkeep
+!outputs/tables/.gitkeep
+!outputs/plots/.gitkeep
+
+# Notebook state
+.ipynb_checkpoints/
+
+# Logs and scheduler output
+*.log
+slurm-*.out
+outputs/cluster/*
+!outputs/cluster/.gitkeep

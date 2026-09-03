@@ -1,0 +1,8 @@
+seed: 42
+max_new_tokens: 128
+do_sample: false
+temperature: null
+top_p: null
+
+# Treat these values as pilot defaults. Record the resolved values in every run
+# manifest and approve them before launching the full baseline experiment.

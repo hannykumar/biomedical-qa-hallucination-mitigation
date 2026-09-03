@@ -1,0 +1,29 @@
+label_values:
+  - yes
+  - no
+  - maybe
+unknown_label: unknown
+unknown_counts_as_incorrect: true
+
+metrics:
+  accuracy:
+    enabled: true
+  rouge_l:
+    enabled: true
+  bertscore:
+    enabled: true
+  cosine_similarity:
+    enabled: true
+  output_length:
+    enabled: true
+  bleu:
+    enabled: false
+  moverscore:
+    enabled: false
+
+comparison_text:
+  prediction: parsed_explanation
+  reference: gold_long_answer
+
+llm_as_judge:
+  enabled: false

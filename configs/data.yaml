@@ -1,0 +1,20 @@
+dataset_id: qiaojin/PubMedQA
+subset: pqa_labeled
+split: train
+
+# Resolved from Hugging Face on 2026-08-11. Pinning the immutable commit keeps
+# the C1 dataset artifact reproducible even if the repository's main branch moves.
+revision: 9001f2853fb87cab8d220904e0de81ac6973b318
+
+cache_dir: data/raw/huggingface
+processed_output: data/processed/pubmedqa_labeled_clean.csv
+metadata_output: data/processed/pubmedqa_labeled_clean.metadata.json
+inspection_report: reports/dataset_inspection.md
+
+normalization:
+  context_separator: "\n\n"
+  sample_id_prefix: pubmedqa-pqa_labeled
+  allowed_labels:
+    - yes
+    - no
+    - maybe

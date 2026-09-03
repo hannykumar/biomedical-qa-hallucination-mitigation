@@ -1,0 +1,26 @@
+settings:
+  S1:
+    prompt_type: question_only
+    decoding_method: standard
+    stage: mvp
+  S2:
+    prompt_type: question_context
+    decoding_method: standard
+    stage: mvp
+  S3:
+    prompt_type: question_only
+    decoding_method: dola
+    stage: phase_2
+  S4:
+    prompt_type: question_context
+    decoding_method: dola
+    stage: phase_2
+  S5:
+    prompt_type: question_context
+    contrast_prompt_type: question_only
+    decoding_method: cad
+    stage: phase_3
+  S6:
+    prompt_type: question_context
+    decoding_method: hybrid
+    stage: phase_5

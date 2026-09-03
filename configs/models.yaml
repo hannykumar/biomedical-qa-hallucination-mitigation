@@ -1,0 +1,33 @@
+schema_version: 1
+
+runtime:
+  framework: transformers
+  device: cuda
+  dtype: bfloat16
+  attention_implementation: sdpa
+  trust_remote_code: false
+  use_fast_tokenizer: false
+  padding_side: left
+  pad_token_policy: eos
+  instruction_format: mistral_v01_shared
+
+models:
+  biomistral_7b:
+    model_id: BioMistral/BioMistral-7B
+    revision: 9a11e1ffa817c211cbb52ee1fb312dc6b61b40a5
+    tokenizer_revision: 9a11e1ffa817c211cbb52ee1fb312dc6b61b40a5
+    role: biomedical
+    expected_model_type: mistral
+    expected_layers: 32
+    expected_hidden_size: 4096
+    expected_tokenizer_model_sha256: dadfd56d766715c61d2ef780a525ab43b8e6da4de6865bda3d95fdef5e134055
+
+  mistral_7b_instruct_v01:
+    model_id: mistralai/Mistral-7B-Instruct-v0.1
+    revision: ec5deb64f2c6e6fa90c1abf74a91d5c93a9669ca
+    tokenizer_revision: ec5deb64f2c6e6fa90c1abf74a91d5c93a9669ca
+    role: base_comparison
+    expected_model_type: mistral
+    expected_layers: 32
+    expected_hidden_size: 4096
+    expected_tokenizer_model_sha256: dadfd56d766715c61d2ef780a525ab43b8e6da4de6865bda3d95fdef5e134055
