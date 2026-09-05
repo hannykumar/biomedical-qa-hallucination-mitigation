@@ -126,5 +126,7 @@ Running this command submits one GPU job containing all four pilots. Obtain
 approval for that specific suite before invoking it. Enter the password only at
 the terminal's hidden SSH prompt; the script never stores it or creates
 persistent passwordless access. If the local connection is interrupted, Slurm
-continues and keeps completed artifacts on university storage. The downloaded
-`RUN_PREFIX.sacct.txt` records actual GPU-job elapsed time.
+continues and keeps completed artifacts on university storage. Rerun the same
+command and run prefix after reconnecting; the saved job ID resumes polling and
+collection without submitting another job. The downloaded `RUN_PREFIX.sacct.txt`
+records actual GPU-job elapsed time.

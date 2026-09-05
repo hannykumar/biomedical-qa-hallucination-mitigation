@@ -37,12 +37,19 @@ if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
 fi
 
 CODE_REVISION="$(git rev-parse HEAD)"
+mkdir -p outputs/cluster outputs/generations/standard
+JOB_ID_FILE="outputs/cluster/${RUN_PREFIX}.job_id"
 TEMP_DIR="$(mktemp -d)"
 CONTROL_SOCKET="${TEMP_DIR}/ssh"
-SSH_OPTIONS=(-o PubkeyAuthentication=no -o PreferredAuthentications=password)
+SSH_OPTIONS=(
+    -o PubkeyAuthentication=no
+    -o PreferredAuthentications=password
+    -o ServerAliveInterval=30
+    -o ServerAliveCountMax=6
+)
 
 cleanup() {
-    ssh -S "${CONTROL_SOCKET}" -O exit "${TARGET}" >/dev/null 2>&1 || true
+    ssh -o BatchMode=yes -S "${CONTROL_SOCKET}" -O exit "${TARGET}" >/dev/null 2>&1 || true
     rmdir "${TEMP_DIR}" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -50,33 +57,46 @@ trap cleanup EXIT
 caffeinate -w $$ >/dev/null 2>&1 &
 echo "Opening one temporary password-authenticated SSH session..."
 ssh "${SSH_OPTIONS[@]}" -M -S "${CONTROL_SOCKET}" -o ControlPersist=no -Nf "${TARGET}"
+SSH=(ssh -o BatchMode=yes -S "${CONTROL_SOCKET}" "${TARGET}")
+RSYNC_SSH="ssh -o BatchMode=yes -S ${CONTROL_SOCKET}"
 
-echo "Synchronizing Git-tracked files only..."
-git ls-files -z | rsync -avR --from0 --files-from=- \
-    -e "ssh -S ${CONTROL_SOCKET}" ./ "${TARGET}:${REMOTE_DIR}/"
+if [[ -f "${JOB_ID_FILE}" ]]; then
+    JOB_ID="$(<"${JOB_ID_FILE}")"
+    [[ "${JOB_ID}" =~ ^[0-9]+$ ]] || { echo "invalid saved Slurm job ID: ${JOB_ID}" >&2; exit 1; }
+    echo "Resuming Slurm job ${JOB_ID}; no new job will be submitted."
+else
+    echo "Synchronizing Git-tracked files only..."
+    git ls-files -z | rsync -avR --from0 --files-from=- \
+        -e "${RSYNC_SSH}" ./ "${TARGET}:${REMOTE_DIR}/"
 
-echo "Running dependency-light cluster checks..."
-ssh -S "${CONTROL_SOCKET}" "${TARGET}" \
-    "cd '${REMOTE_DIR}' && source \"\${HOME}/miniconda3/etc/profile.d/conda.sh\" && conda activate biomed-hallucination && python -m unittest discover -s tests -v && bash -n cluster/standard_smoke_suite.sbatch"
+    echo "Running dependency-light cluster checks..."
+    "${SSH[@]}" \
+        "cd '${REMOTE_DIR}' && source \"\${HOME}/miniconda3/etc/profile.d/conda.sh\" && conda activate biomed-hallucination && python -m unittest discover -s tests -v && bash -n cluster/standard_smoke_suite.sbatch"
 
-echo "Submitting the approved four-run GPU smoke suite..."
-JOB_ID="$(ssh -S "${CONTROL_SOCKET}" "${TARGET}" \
-    "cd '${REMOTE_DIR}' && mkdir -p outputs/cluster && sbatch --parsable cluster/standard_smoke_suite.sbatch '${RUN_PREFIX}' '${CODE_REVISION}'")"
-[[ "${JOB_ID}" =~ ^[0-9]+$ ]] || { echo "unexpected Slurm job ID: ${JOB_ID}" >&2; exit 1; }
+    echo "Submitting the approved four-run GPU smoke suite..."
+    JOB_ID="$("${SSH[@]}" \
+        "cd '${REMOTE_DIR}' && mkdir -p outputs/cluster && sbatch --parsable cluster/standard_smoke_suite.sbatch '${RUN_PREFIX}' '${CODE_REVISION}'")"
+    [[ "${JOB_ID}" =~ ^[0-9]+$ ]] || { echo "unexpected Slurm job ID: ${JOB_ID}" >&2; exit 1; }
+    printf '%s\n' "${JOB_ID}" >"${JOB_ID_FILE}"
+fi
 echo "JOB_ID=${JOB_ID}"
 
-while STATUS="$(ssh -S "${CONTROL_SOCKET}" "${TARGET}" "squeue -h -j '${JOB_ID}' -o '%T %M %R'")" && [[ -n "${STATUS}" ]]; do
+while true; do
+    if ! STATUS="$("${SSH[@]}" "squeue -h -j '${JOB_ID}' -o '%T %M %R'")"; then
+        echo "SSH connection lost; rerun this same command to resume job ${JOB_ID}." >&2
+        exit 3
+    fi
+    [[ -n "${STATUS}" ]] || break
     echo "${STATUS}"
     sleep "${POLL_SECONDS}"
 done
 
-mkdir -p outputs/cluster outputs/generations/standard
-ACCOUNTING="$(ssh -S "${CONTROL_SOCKET}" "${TARGET}" \
+ACCOUNTING="$("${SSH[@]}" \
     "sacct -j '${JOB_ID}' --format=JobID,State,ExitCode,Elapsed,NodeList")"
 printf '%s\n' "${ACCOUNTING}" | tee "outputs/cluster/${RUN_PREFIX}.sacct.txt"
-STATE="$(ssh -S "${CONTROL_SOCKET}" "${TARGET}" \
+STATE="$("${SSH[@]}" \
     "sacct -X -n -j '${JOB_ID}' --format=State | head -n 1 | xargs")"
-rsync -av -e "ssh -S ${CONTROL_SOCKET}" \
+rsync -av -e "${RSYNC_SSH}" \
     "${TARGET}:${REMOTE_DIR}/outputs/cluster/c4-suite-${JOB_ID}.out" \
     "${TARGET}:${REMOTE_DIR}/outputs/cluster/c4-suite-${JOB_ID}.err" \
     outputs/cluster/
@@ -85,19 +105,20 @@ rsync -av -e "ssh -S ${CONTROL_SOCKET}" \
 for MODEL_KEY in mistral_7b_instruct_v01 biomistral_7b; do
     for SETTING_ID in S1 S2; do
         RUN_ID="${RUN_PREFIX}-${MODEL_KEY}-${SETTING_ID}"
-        rsync -av -e "ssh -S ${CONTROL_SOCKET}" \
+        rsync -av -e "${RSYNC_SSH}" \
             "${TARGET}:${REMOTE_DIR}/outputs/generations/standard/${RUN_ID}.jsonl" \
             "${TARGET}:${REMOTE_DIR}/outputs/generations/standard/${RUN_ID}.manifest.json" \
             outputs/generations/standard/
     done
 done
-rsync -av -e "ssh -S ${CONTROL_SOCKET}" \
+rsync -av -e "${RSYNC_SSH}" \
     "${TARGET}:${REMOTE_DIR}/outputs/cluster/${RUN_PREFIX}.summary.json" \
     outputs/cluster/
 
 shasum -a 256 \
     outputs/generations/standard/"${RUN_PREFIX}"-* \
     "outputs/cluster/${RUN_PREFIX}.summary.json" \
+    "${JOB_ID_FILE}" \
     "outputs/cluster/${RUN_PREFIX}.sacct.txt" \
     "outputs/cluster/c4-suite-${JOB_ID}.out" \
     "outputs/cluster/c4-suite-${JOB_ID}.err"
