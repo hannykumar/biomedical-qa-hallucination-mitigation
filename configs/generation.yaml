@@ -1,5 +1,5 @@
 seed: 42
-max_new_tokens: 256
+max_new_tokens: 128
 do_sample: false
 temperature: null
 top_p: null
