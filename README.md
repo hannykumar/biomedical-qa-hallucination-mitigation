@@ -104,3 +104,24 @@ sbatch cluster/standard_pilot.sbatch MODEL_KEY S1\|S2 RUN_ID CODE_REVISION
 
 Model loading and generation are CUDA-only. Local tests use fakes and never
 load either model.
+
+### Automated pilot lifecycle
+
+From macOS, one command can synchronize only Git-tracked files, reuse one
+temporary password-authenticated SSH connection, run dependency-light checks,
+submit one approved Slurm pilot, poll it, and download its logs, JSONL, and
+manifest. The temporary connection closes when the command exits, and results
+remain Git-ignored under `outputs/`:
+
+```bash
+./cluster/run_standard_pilot_remote.sh \
+  USER@login-1.gpu.cit-ec.net \
+  /homes/USER/biomed-hallucination \
+  mistral_7b_instruct_v01 \
+  S1 \
+  UNIQUE_RUN_ID
+```
+
+Running this command submits a GPU job. Obtain approval for that specific model,
+setting, and run before invoking it. The script never stores a password or
+creates persistent passwordless access.
