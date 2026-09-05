@@ -4,8 +4,8 @@ This repository studies whether standard decoding, DoLA, CAD, and a later hybrid
 
 C1-C3 establish the pinned PubMedQA data contract, versioned prompts, and a
 verified university-A40 runtime for BioMistral-7B and
-Mistral-7B-Instruct-v0.1. The next runnable target is the S1/S2 standard
-generation baseline.
+Mistral-7B-Instruct-v0.1. C4 implements resumable S1/S2 standard generation;
+its five-sample GPU pilot has not been submitted yet.
 
 ## C1 dataset setup
 
@@ -87,3 +87,20 @@ sbatch cluster/model_smoke.sbatch biomistral_7b
 
 C3 is complete: both pinned model revisions loaded in BF16 on allocated A40
 GPUs and produced nonempty deterministic smoke completions.
+
+## C4 standard baseline generation
+
+`src/generation/run_generation.py` reads the normalized C1 CSV, resolves S1 or
+S2, builds the C2 prompt, calls `src/decoding/standard.py`, and appends one raw
+JSONL record per completed sample. Re-running the same immutable run skips
+completed sample IDs and rejects changed manifests or duplicate records.
+
+The pilot script is intentionally limited to five examples. It must be
+submitted only after explicit approval for that GPU action:
+
+```bash
+sbatch cluster/standard_pilot.sbatch MODEL_KEY S1\|S2 RUN_ID CODE_REVISION
+```
+
+Model loading and generation are CUDA-only. Local tests use fakes and never
+load either model.
