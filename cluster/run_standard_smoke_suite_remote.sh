@@ -3,14 +3,14 @@
 set -euo pipefail
 
 usage() {
-    echo "usage: $0 USER@HOST REMOTE_PROJECT_DIR MODEL_KEY S1|S2 RUN_ID" >&2
+    echo "usage: $0 USER@HOST REMOTE_PROJECT_DIR RUN_PREFIX" >&2
 }
 
 if [[ ${1:-} == "--help" ]]; then
     usage
     exit 0
 fi
-if [[ $# -ne 5 ]]; then
+if [[ $# -ne 3 ]]; then
     usage
     exit 2
 fi
@@ -21,16 +21,12 @@ fi
 
 TARGET="$1"
 REMOTE_DIR="$2"
-MODEL_KEY="$3"
-SETTING_ID="$4"
-RUN_ID="$5"
+RUN_PREFIX="$3"
 POLL_SECONDS="${POLL_SECONDS:-15}"
 
 [[ "${TARGET}" =~ ^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+$ ]] || { echo "invalid USER@HOST" >&2; exit 2; }
 [[ "${REMOTE_DIR}" =~ ^/[A-Za-z0-9._/-]+$ ]] || { echo "REMOTE_PROJECT_DIR must be an absolute simple path" >&2; exit 2; }
-[[ "${MODEL_KEY}" == "mistral_7b_instruct_v01" || "${MODEL_KEY}" == "biomistral_7b" ]] || { echo "unsupported model key" >&2; exit 2; }
-[[ "${SETTING_ID}" == "S1" || "${SETTING_ID}" == "S2" ]] || { echo "setting must be S1 or S2" >&2; exit 2; }
-[[ "${RUN_ID}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { echo "invalid RUN_ID" >&2; exit 2; }
+[[ "${RUN_PREFIX}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$ ]] || { echo "invalid RUN_PREFIX" >&2; exit 2; }
 [[ "${POLL_SECONDS}" =~ ^[1-9][0-9]*$ ]] || { echo "POLL_SECONDS must be a positive integer" >&2; exit 2; }
 
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
@@ -51,6 +47,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
+caffeinate -w $$ >/dev/null 2>&1 &
 echo "Opening one temporary password-authenticated SSH session..."
 ssh "${SSH_OPTIONS[@]}" -M -S "${CONTROL_SOCKET}" -o ControlPersist=no -Nf "${TARGET}"
 
@@ -60,11 +57,11 @@ git ls-files -z | rsync -avR --from0 --files-from=- \
 
 echo "Running dependency-light cluster checks..."
 ssh -S "${CONTROL_SOCKET}" "${TARGET}" \
-    "cd '${REMOTE_DIR}' && source \"\${HOME}/miniconda3/etc/profile.d/conda.sh\" && conda activate biomed-hallucination && python -m unittest discover -s tests -v && bash -n cluster/standard_pilot.sbatch"
+    "cd '${REMOTE_DIR}' && source \"\${HOME}/miniconda3/etc/profile.d/conda.sh\" && conda activate biomed-hallucination && python -m unittest discover -s tests -v && bash -n cluster/standard_smoke_suite.sbatch"
 
-echo "Submitting the approved GPU job..."
+echo "Submitting the approved four-run GPU smoke suite..."
 JOB_ID="$(ssh -S "${CONTROL_SOCKET}" "${TARGET}" \
-    "cd '${REMOTE_DIR}' && mkdir -p outputs/cluster && sbatch --parsable cluster/standard_pilot.sbatch '${MODEL_KEY}' '${SETTING_ID}' '${RUN_ID}' '${CODE_REVISION}'")"
+    "cd '${REMOTE_DIR}' && mkdir -p outputs/cluster && sbatch --parsable cluster/standard_smoke_suite.sbatch '${RUN_PREFIX}' '${CODE_REVISION}'")"
 [[ "${JOB_ID}" =~ ^[0-9]+$ ]] || { echo "unexpected Slurm job ID: ${JOB_ID}" >&2; exit 1; }
 echo "JOB_ID=${JOB_ID}"
 
@@ -73,24 +70,35 @@ while STATUS="$(ssh -S "${CONTROL_SOCKET}" "${TARGET}" "squeue -h -j '${JOB_ID}'
     sleep "${POLL_SECONDS}"
 done
 
-ssh -S "${CONTROL_SOCKET}" "${TARGET}" \
-    "sacct -j '${JOB_ID}' --format=JobID,State,ExitCode,Elapsed,NodeList"
-
 mkdir -p outputs/cluster outputs/generations/standard
+ACCOUNTING="$(ssh -S "${CONTROL_SOCKET}" "${TARGET}" \
+    "sacct -j '${JOB_ID}' --format=JobID,State,ExitCode,Elapsed,NodeList")"
+printf '%s\n' "${ACCOUNTING}" | tee "outputs/cluster/${RUN_PREFIX}.sacct.txt"
 STATE="$(ssh -S "${CONTROL_SOCKET}" "${TARGET}" \
     "sacct -X -n -j '${JOB_ID}' --format=State | head -n 1 | xargs")"
 rsync -av -e "ssh -S ${CONTROL_SOCKET}" \
-    "${TARGET}:${REMOTE_DIR}/outputs/cluster/c4-pilot-${JOB_ID}.out" \
-    "${TARGET}:${REMOTE_DIR}/outputs/cluster/c4-pilot-${JOB_ID}.err" \
+    "${TARGET}:${REMOTE_DIR}/outputs/cluster/c4-suite-${JOB_ID}.out" \
+    "${TARGET}:${REMOTE_DIR}/outputs/cluster/c4-suite-${JOB_ID}.err" \
     outputs/cluster/
-[[ "${STATE%%+*}" == "COMPLETED" ]] || { echo "job finished with state ${STATE}" >&2; exit 1; }
+[[ "${STATE%%+*}" == "COMPLETED" ]] || { echo "suite finished with state ${STATE}; generation files remain on the cluster" >&2; exit 1; }
 
+for MODEL_KEY in mistral_7b_instruct_v01 biomistral_7b; do
+    for SETTING_ID in S1 S2; do
+        RUN_ID="${RUN_PREFIX}-${MODEL_KEY}-${SETTING_ID}"
+        rsync -av -e "ssh -S ${CONTROL_SOCKET}" \
+            "${TARGET}:${REMOTE_DIR}/outputs/generations/standard/${RUN_ID}.jsonl" \
+            "${TARGET}:${REMOTE_DIR}/outputs/generations/standard/${RUN_ID}.manifest.json" \
+            outputs/generations/standard/
+    done
+done
 rsync -av -e "ssh -S ${CONTROL_SOCKET}" \
-    "${TARGET}:${REMOTE_DIR}/outputs/generations/standard/${RUN_ID}.jsonl" \
-    "${TARGET}:${REMOTE_DIR}/outputs/generations/standard/${RUN_ID}.manifest.json" \
-    outputs/generations/standard/
+    "${TARGET}:${REMOTE_DIR}/outputs/cluster/${RUN_PREFIX}.summary.json" \
+    outputs/cluster/
 
 shasum -a 256 \
-    "outputs/generations/standard/${RUN_ID}.jsonl" \
-    "outputs/generations/standard/${RUN_ID}.manifest.json"
-echo "CLUSTER_PILOT_COMPLETE job_id=${JOB_ID} run_id=${RUN_ID}"
+    outputs/generations/standard/"${RUN_PREFIX}"-* \
+    "outputs/cluster/${RUN_PREFIX}.summary.json" \
+    "outputs/cluster/${RUN_PREFIX}.sacct.txt" \
+    "outputs/cluster/c4-suite-${JOB_ID}.out" \
+    "outputs/cluster/c4-suite-${JOB_ID}.err"
+echo "CLUSTER_SMOKE_SUITE_COMPLETE job_id=${JOB_ID} summary=outputs/cluster/${RUN_PREFIX}.summary.json"

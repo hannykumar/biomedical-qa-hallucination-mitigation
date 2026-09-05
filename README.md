@@ -105,23 +105,26 @@ sbatch cluster/standard_pilot.sbatch MODEL_KEY S1\|S2 RUN_ID CODE_REVISION
 Model loading and generation are CUDA-only. Local tests use fakes and never
 load either model.
 
-### Automated pilot lifecycle
+### Automated baseline smoke suite
 
-From macOS, one command can synchronize only Git-tracked files, reuse one
-temporary password-authenticated SSH connection, run dependency-light checks,
-submit one approved Slurm pilot, poll it, and download its logs, JSONL, and
-manifest. The temporary connection closes when the command exits, and results
-remain Git-ignored under `outputs/`:
+From macOS, one command runs the four five-sample C4 pilots sequentially on one
+A40: both fixed models with S1 and S2. It synchronizes only Git-tracked files,
+reuses one temporary password-authenticated SSH connection, runs dependency-light
+checks, polls Slurm, and downloads logs, JSONL, manifests, and a readiness summary.
+The Slurm job has a hard five-hour limit. The temporary connection closes when
+the command exits, and results remain Git-ignored under `outputs/`:
 
 ```bash
-./cluster/run_standard_pilot_remote.sh \
+./cluster/run_standard_smoke_suite_remote.sh \
   USER@login-1.gpu.cit-ec.net \
   /homes/USER/biomed-hallucination \
-  mistral_7b_instruct_v01 \
-  S1 \
-  UNIQUE_RUN_ID
+  UNIQUE_RUN_PREFIX
 ```
 
-Running this command submits a GPU job. Obtain approval for that specific model,
-setting, and run before invoking it. The script never stores a password or
-creates persistent passwordless access.
+Running this command submits one GPU job containing all four pilots. Obtain
+approval for that specific suite before invoking it. Enter the password only at
+the terminal's hidden SSH prompt; the script never stores it or creates
+persistent passwordless access. If the local connection is interrupted, Slurm
+continues and keeps completed artifacts on university storage. The downloaded
+`RUN_PREFIX.sacct.txt` records actual elapsed time; an additional weekly-budget
+guard requires the cluster's exact allowance and reset rule.
