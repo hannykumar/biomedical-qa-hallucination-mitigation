@@ -81,7 +81,9 @@ class StandardDecoderTests(unittest.TestCase):
 
 class GenerationOrchestrationTests(unittest.TestCase):
     def test_resolves_only_deterministic_s1_s2(self) -> None:
-        self.assertEqual(load_standard_run_config("S1").prompt_type, "question_only")
+        s1 = load_standard_run_config("S1")
+        self.assertEqual(s1.prompt_type, "question_only")
+        self.assertEqual(s1.max_new_tokens, 256)
         self.assertEqual(load_standard_run_config("S2").prompt_type, "question_context")
         with self.assertRaisesRegex(GenerationRunError, "S1 or S2"):
             load_standard_run_config("S3")
