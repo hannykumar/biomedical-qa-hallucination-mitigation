@@ -4,8 +4,10 @@ This repository studies whether standard decoding, DoLA, CAD, and a later hybrid
 
 C1-C3 establish the pinned PubMedQA data contract, versioned prompts, and a
 verified university-A40 runtime for BioMistral-7B and
-Mistral-7B-Instruct-v0.1. C4 implements resumable S1/S2 standard generation;
-its five-sample GPU pilot has not been submitted yet.
+Mistral-7B-Instruct-v0.1. C4 implements resumable S1/S2 standard generation.
+Its four-combination smoke suite completed, but the original minimal prompt
+failed the label-format and output-length readiness gate. Prompt version 2 now
+requires an explicit final label and no more than three explanation sentences.
 
 ## C1 dataset setup
 

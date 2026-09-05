@@ -1,15 +1,23 @@
-version: 1
-default_format: minimal
+version: 2
+default_format: structured
 
 prompts:
   question_only: |-
     Question: {question}
 
-    Answer the question and explain your reasoning briefly.
+    Your first line must be exactly one of:
+    Final answer: yes
+    Final answer: no
+    Final answer: maybe
+    Your second line must begin with "Explanation:" and contain no more than three concise sentences.
 
   question_context: |-
     Context: {context}
 
     Question: {question}
 
-    Answer the question and explain your reasoning briefly.
+    Your first line must be exactly one of:
+    Final answer: yes
+    Final answer: no
+    Final answer: maybe
+    Your second line must begin with "Explanation:" and contain no more than three concise sentences.

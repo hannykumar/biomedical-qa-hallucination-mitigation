@@ -25,7 +25,12 @@ class MistralFormattingTests(unittest.TestCase):
             serialized,
             "<s>[INST] Context: Background evidence.\n\nResults evidence.\n\n"
             "Question: Does the intervention help?\n\n"
-            "Answer the question and explain your reasoning briefly. [/INST]",
+            "Your first line must be exactly one of:\n"
+            "Final answer: yes\n"
+            "Final answer: no\n"
+            "Final answer: maybe\n"
+            'Your second line must begin with "Explanation:" and contain no more '
+            "than three concise sentences. [/INST]",
         )
         self.assertEqual(serialized.count("<s>"), 1)
         self.assertEqual(serialized.count("[INST]"), 1)
