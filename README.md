@@ -111,8 +111,9 @@ From macOS, one command runs the four five-sample C4 pilots sequentially on one
 A40: both fixed models with S1 and S2. It synchronizes only Git-tracked files,
 reuses one temporary password-authenticated SSH connection, runs dependency-light
 checks, polls Slurm, and downloads logs, JSONL, manifests, and a readiness summary.
-The Slurm job has a hard five-hour limit. The temporary connection closes when
-the command exits, and results remain Git-ignored under `outputs/`:
+The Slurm job has a two-hour safety ceiling; this is separate from Codex account
+usage and actual GPU time stops when the job finishes. The temporary connection
+closes when the command exits, and results remain Git-ignored under `outputs/`:
 
 ```bash
 ./cluster/run_standard_smoke_suite_remote.sh \
@@ -126,5 +127,4 @@ approval for that specific suite before invoking it. Enter the password only at
 the terminal's hidden SSH prompt; the script never stores it or creates
 persistent passwordless access. If the local connection is interrupted, Slurm
 continues and keeps completed artifacts on university storage. The downloaded
-`RUN_PREFIX.sacct.txt` records actual elapsed time; an additional weekly-budget
-guard requires the cluster's exact allowance and reset rule.
+`RUN_PREFIX.sacct.txt` records actual GPU-job elapsed time.

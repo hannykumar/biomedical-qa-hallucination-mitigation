@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=40G
 #SBATCH --tmp=40G
-#SBATCH --time=05:00:00
+#SBATCH --time=02:00:00
 #SBATCH --output=outputs/cluster/c4-suite-%j.out
 #SBATCH --error=outputs/cluster/c4-suite-%j.err
 
