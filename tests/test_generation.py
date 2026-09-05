@@ -84,6 +84,10 @@ class GenerationOrchestrationTests(unittest.TestCase):
         s1 = load_standard_run_config("S1")
         self.assertEqual(s1.prompt_type, "question_only")
         self.assertEqual(s1.max_new_tokens, 128)
+        self.assertEqual(
+            load_standard_run_config("S1", max_new_tokens_override=256).max_new_tokens,
+            256,
+        )
         self.assertEqual(load_standard_run_config("S2").prompt_type, "question_context")
         with self.assertRaisesRegex(GenerationRunError, "S1 or S2"):
             load_standard_run_config("S3")

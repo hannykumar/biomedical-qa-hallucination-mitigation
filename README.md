@@ -113,6 +113,8 @@ From macOS, one command runs the four five-sample C4 pilots sequentially on one
 A40: both fixed models with S1 and S2. It synchronizes only Git-tracked files,
 reuses one temporary password-authenticated SSH connection, runs dependency-light
 checks, polls Slurm, and downloads logs, JSONL, manifests, and a readiness summary.
+This diagnostic suite explicitly uses 256 maximum new tokens; the stored baseline
+default remains 128 for the later 1,000-example run.
 The Slurm job has a two-hour safety ceiling; this is separate from Codex account
 usage and actual GPU time stops when the job finishes. The temporary connection
 closes when the command exits, and results remain Git-ignored under `outputs/`:

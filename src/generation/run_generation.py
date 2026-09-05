@@ -54,6 +54,7 @@ def load_standard_run_config(
     *,
     experiments_path: str | Path = "configs/experiments.yaml",
     generation_path: str | Path = "configs/generation.yaml",
+    max_new_tokens_override: int | None = None,
 ) -> StandardRunConfig:
     """Resolve and validate one deterministic S1/S2 configuration."""
 
@@ -85,7 +86,11 @@ def load_standard_run_config(
         raise GenerationRunError("temperature and top_p must remain null for C4")
 
     seed = generation.get("seed")
-    max_new_tokens = generation.get("max_new_tokens")
+    max_new_tokens = (
+        generation.get("max_new_tokens")
+        if max_new_tokens_override is None
+        else max_new_tokens_override
+    )
     if isinstance(seed, bool) or not isinstance(seed, int):
         raise GenerationRunError("seed must be an integer")
     if (
@@ -174,6 +179,7 @@ def run_generation(
     output_dir: str | Path = DEFAULT_OUTPUT_DIR,
     limit: int | None = None,
     local_files_only: bool = False,
+    max_new_tokens: int | None = None,
 ) -> dict[str, Any]:
     """Generate missing samples and append each raw result exactly once."""
 
@@ -182,7 +188,9 @@ def run_generation(
     if not COMMIT_PATTERN.fullmatch(code_revision):
         raise GenerationRunError("code_revision must be a 40-character lowercase Git SHA")
 
-    run_config = load_standard_run_config(setting_id)
+    run_config = load_standard_run_config(
+        setting_id, max_new_tokens_override=max_new_tokens
+    )
     examples = load_normalized_examples(dataset_path, limit=limit)
     prompt_config = load_prompt_config()
     registry = load_model_registry()
@@ -452,6 +460,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--metadata-path", type=Path, default=DEFAULT_METADATA)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--limit", type=int)
+    parser.add_argument("--max-new-tokens", type=int)
     parser.add_argument("--local-files-only", action="store_true")
     return parser.parse_args()
 
@@ -471,6 +480,7 @@ def main() -> int:
         output_dir=args.output_dir,
         limit=args.limit,
         local_files_only=args.local_files_only,
+        max_new_tokens=args.max_new_tokens,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0

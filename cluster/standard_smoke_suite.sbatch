@@ -40,6 +40,7 @@ for MODEL_KEY in mistral_7b_instruct_v01 biomistral_7b; do
             --run-id "${RUN_PREFIX}-${MODEL_KEY}-${SETTING_ID}" \
             --code-revision "${CODE_REVISION}" \
             --cache-dir "${HF_HOME}" \
+            --max-new-tokens 256 \
             --limit 5
     done
 done
