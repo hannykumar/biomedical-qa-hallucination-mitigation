@@ -146,7 +146,10 @@ proof that an explanation is free of hallucinations.
 - C3 model and university A40 setup: complete for both models.
 - C4 standard generation: complete for all 4,000 baseline outputs.
 - C7 output parser: complete for the full baseline.
-- C8-C10 evaluation: next; answer accuracy has not yet been calculated.
+- C8 final-label accuracy: complete for all 4,000 baseline outputs.
+- C9 ROUGE-L and output-length evaluation: complete for all 4,000 outputs.
+- C10 BERTScore and cosine-similarity evaluation: complete for 3,995 available explanations.
+- Combined Phase 1 MVP results table: next.
 - DoLA and CAD: planned after the baseline is reproducible and evaluated.
 
 ### Full baseline generation result
@@ -158,6 +161,46 @@ proof that an explanation is free of hallucinations.
 | BioMistral S1 | 1,000 | 1,000 | 0 | 34 |
 | BioMistral S2 | 1,000 | 999 | 5 | 25 |
 | **Total** | **4,000** | **3,999** | **5** | **65** |
+
+### Full baseline label accuracy
+
+| Model and setting | Correct | Accuracy | Parser failures |
+|---|---:|---:|---:|
+| Mistral S1 | 475/1,000 | 47.5% | 0 |
+| Mistral S2 | 687/1,000 | 68.7% | 0 |
+| BioMistral S1 | 548/1,000 | 54.8% | 0 |
+| BioMistral S2 | 708/1,000 | 70.8% | 5 |
+
+`unknown` labels count as incorrect. Parser failures are reported separately and
+do not change the 1,000-example denominator.
+
+### Full baseline ROUGE-L and output length
+
+| Model and setting | Mean ROUGE-L | Explanations scored | Mean generated tokens |
+|---|---:|---:|---:|
+| Mistral S1 | 0.1953 | 1,000/1,000 | 42.034 |
+| Mistral S2 | 0.2213 | 1,000/1,000 | 50.572 |
+| BioMistral S1 | 0.1965 | 1,000/1,000 | 48.350 |
+| BioMistral S2 | 0.2110 | 995/1,000 | 48.112 |
+
+ROUGE-L here is case-insensitive word-level F1 without stemming. It measures
+lexical overlap with the gold long answer, not medical correctness or
+hallucination. Five missing BioMistral S2 explanations remain null and are
+excluded from the mean rather than guessed or silently scored.
+
+### Full baseline semantic similarity
+
+| Model and setting | Mean BERTScore F1 | Mean cosine similarity | Explanations scored |
+|---|---:|---:|---:|
+| Mistral S1 | 0.6627 | 0.9507 | 1,000/1,000 |
+| Mistral S2 | 0.6700 | 0.9530 | 1,000/1,000 |
+| BioMistral S1 | 0.6590 | 0.9469 | 1,000/1,000 |
+| BioMistral S2 | 0.6611 | 0.9474 | 995/1,000 |
+
+These are within-pipeline similarity signals, not percentages and not direct
+proof of factual correctness or freedom from hallucination. The five missing
+BioMistral S2 explanations remain null. No scored text reached either encoder's
+input limit.
 
 All four GPU generation steps completed in 1 hour 49 minutes. Slurm marked the
 wrapper job as failed only because the first validator split at a valid Unicode
@@ -248,3 +291,43 @@ python3 -m src.generation.parse_outputs \
 C7 preserves every raw field and writes separate parsed JSONL files containing
 the extracted label, explanation, parser status, errors, and format class. Raw
 model outputs are never overwritten.
+
+### Evaluate final-label accuracy on CPU
+
+```bash
+python3 -m src.evaluation.accuracy \
+  outputs/generations/parsed/RUN_PREFIX-*.jsonl \
+  --metrics-path outputs/metrics/RUN_PREFIX-label-accuracy.jsonl \
+  --table-path outputs/tables/RUN_PREFIX-label-accuracy.csv
+```
+
+C8 rejects unaligned run order, counts `unknown` as incorrect, and writes
+Git-ignored per-sample scores plus a model/setting aggregate table.
+
+### Evaluate ROUGE-L and output length on CPU
+
+```bash
+python3 -m src.evaluation.overlap_metrics \
+  outputs/generations/parsed/RUN_PREFIX-*.jsonl \
+  --metrics-path outputs/metrics/RUN_PREFIX-rouge-l-length.jsonl \
+  --table-path outputs/tables/RUN_PREFIX-rouge-l-length.csv
+```
+
+C9 reuses C8's paired-order validation and writes per-sample scores plus grouped
+means, population standard deviations, missing counts, and parser-failure counts.
+
+### Evaluate BERTScore and cosine similarity on CPU
+
+```bash
+conda create --prefix .venv --channel conda-forge --override-channels \
+  python=3.11 pip=25.1
+.venv/bin/python -m pip install -r requirements-evaluation.txt
+.venv/bin/python -m src.evaluation.semantic_metrics \
+  outputs/generations/parsed/RUN_PREFIX-*.jsonl \
+  --metrics-path outputs/metrics/RUN_PREFIX-semantic.jsonl \
+  --table-path outputs/tables/RUN_PREFIX-semantic.csv
+```
+
+C10 enforces the pinned package and model revisions in
+`configs/evaluation.yaml`, records that provenance in every result, and leaves
+missing explanations unscored.

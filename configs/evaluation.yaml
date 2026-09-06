@@ -27,3 +27,23 @@ comparison_text:
 
 llm_as_judge:
   enabled: false
+
+semantic_metrics:
+  batch_size: 16
+  cache_dir: .cache/c10-models
+  device: cpu
+  runtime_versions:
+    bert-score: 0.3.13
+    torch: 2.6.0
+    transformers: 4.50.3
+  bertscore:
+    model_id: allenai/scibert_scivocab_uncased
+    model_revision: 24f92d32b1bfb0bcaf9ab193ff3ad01e87732fc1
+    num_layers: 8
+    idf: false
+    rescale_with_baseline: false
+  cosine_similarity:
+    model_id: pritamdeka/S-PubMedBert-MS-MARCO
+    model_revision: 96786c7024f95c5aac7f2b9a18086c7b97b23036
+    max_length: 350
+    pooling: mean
