@@ -1,23 +1,27 @@
-version: 2
+version: 3
 default_format: structured
 
 prompts:
   question_only: |-
     Question: {question}
 
-    Your first line must be exactly one of:
+    Respond with exactly two lines and no other text.
+    Line 1 must be exactly one of:
     Final answer: yes
     Final answer: no
     Final answer: maybe
-    Your second line must begin with "Explanation:" and contain no more than three concise sentences.
+    Line 2 must begin with "Explanation:" and contain exactly one concise sentence.
+    Always include both lines. Do not stop after line 1. Do not begin with "Explanation:".
 
   question_context: |-
     Context: {context}
 
     Question: {question}
 
-    Your first line must be exactly one of:
+    Respond with exactly two lines and no other text.
+    Line 1 must be exactly one of:
     Final answer: yes
     Final answer: no
     Final answer: maybe
-    Your second line must begin with "Explanation:" and contain no more than three concise sentences.
+    Line 2 must begin with "Explanation:" and contain exactly one concise sentence.
+    Always include both lines. Do not stop after line 1. Do not begin with "Explanation:".

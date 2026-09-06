@@ -24,8 +24,8 @@ class PromptBuilderTests(unittest.TestCase):
         cls.config = load_prompt_config()
         cls.example = normalize_pubmedqa_record(source_record(), source_row_index=0)
 
-    def test_loads_approved_version_two_configuration(self) -> None:
-        self.assertEqual(self.config.version, 2)
+    def test_loads_approved_version_three_configuration(self) -> None:
+        self.assertEqual(self.config.version, 3)
         self.assertEqual(self.config.prompt_format, "structured")
         self.assertEqual(self.config.source_path, "configs/prompts.yaml")
 
@@ -39,12 +39,15 @@ class PromptBuilderTests(unittest.TestCase):
         self.assertEqual(
             built.text,
             "Question: Does the intervention help?\n\n"
-            "Your first line must be exactly one of:\n"
+            "Respond with exactly two lines and no other text.\n"
+            "Line 1 must be exactly one of:\n"
             "Final answer: yes\n"
             "Final answer: no\n"
             "Final answer: maybe\n"
-            'Your second line must begin with "Explanation:" and contain no more '
-            "than three concise sentences.",
+            'Line 2 must begin with "Explanation:" and contain exactly one concise '
+            "sentence.\n"
+            "Always include both lines. Do not stop after line 1. Do not begin with "
+            '"Explanation:".',
         )
         self.assertNotIn("Background evidence", built.text)
         self.assertFalse(built.text.endswith("\n"))
@@ -60,12 +63,15 @@ class PromptBuilderTests(unittest.TestCase):
             built.text,
             "Context: Background evidence.\n\nResults evidence.\n\n"
             "Question: Does the intervention help?\n\n"
-            "Your first line must be exactly one of:\n"
+            "Respond with exactly two lines and no other text.\n"
+            "Line 1 must be exactly one of:\n"
             "Final answer: yes\n"
             "Final answer: no\n"
             "Final answer: maybe\n"
-            'Your second line must begin with "Explanation:" and contain no more '
-            "than three concise sentences.",
+            'Line 2 must begin with "Explanation:" and contain exactly one concise '
+            "sentence.\n"
+            "Always include both lines. Do not stop after line 1. Do not begin with "
+            '"Explanation:".',
         )
         self.assertFalse(built.text.endswith("\n"))
 
@@ -83,7 +89,7 @@ class PromptBuilderTests(unittest.TestCase):
 
         self.assertEqual(first.sample_id, self.example.sample_id)
         self.assertEqual(first.prompt_type, "question_context")
-        self.assertEqual(first.prompt_version, 2)
+        self.assertEqual(first.prompt_version, 3)
         self.assertEqual(first.prompt_format, "structured")
         self.assertEqual(len(first.template_sha256), 64)
         self.assertEqual(len(first.prompt_sha256), 64)
@@ -93,7 +99,7 @@ class PromptBuilderTests(unittest.TestCase):
             first.metadata(),
             {
                 "prompt_type": "question_context",
-                "prompt_version": 2,
+                "prompt_version": 3,
                 "prompt_format": "structured",
                 "template_sha256": first.template_sha256,
                 "prompt_sha256": first.prompt_sha256,
