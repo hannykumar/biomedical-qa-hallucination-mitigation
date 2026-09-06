@@ -33,11 +33,8 @@ def validate_smoke_suite(
 
     for model_key, setting_id in RUNS:
         run_id = f"{run_prefix}-{model_key}-{setting_id}"
-        records = [
-            json.loads(line)
-            for line in (base / f"{run_id}.jsonl").read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
+        with (base / f"{run_id}.jsonl").open(encoding="utf-8") as handle:
+            records = [json.loads(line) for line in handle if line.strip()]
         manifest = json.loads(
             (base / f"{run_id}.manifest.json").read_text(encoding="utf-8")
         )

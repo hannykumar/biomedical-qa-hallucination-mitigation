@@ -61,13 +61,17 @@ class ClusterAutomationTests(unittest.TestCase):
                             "question_only" if setting_id == "S1" else "question_context"
                         ),
                         "generation_parameters": {"max_new_tokens": 128},
+                        "question": "Unicode line separator: \u2028 remains in one JSON record",
                         "raw_output": "Final answer: yes\nExplanation: Complete answer.",
                         "generated_tokens": 12,
                     }
                     for index in range(5)
                 ]
                 (base / f"{run_id}.jsonl").write_text(
-                    "".join(json.dumps(record) + "\n" for record in records),
+                    "".join(
+                        json.dumps(record, ensure_ascii=False) + "\n"
+                        for record in records
+                    ),
                     encoding="utf-8",
                 )
                 (base / f"{run_id}.manifest.json").write_text(

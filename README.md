@@ -144,13 +144,29 @@ proof that an explanation is free of hallucinations.
 - C1 dataset preparation: complete for all 1,000 examples.
 - C2 prompt construction: complete; version 3 selected.
 - C3 model and university A40 setup: complete for both models.
-- C4 standard generation: 25-question smoke test complete; full run pending.
-- C7 output parser: complete and integrated into smoke-test collection.
-- C8-C10 evaluation: planned after the full standard baseline is generated.
+- C4 standard generation: complete for all 4,000 baseline outputs.
+- C7 output parser: complete for the full baseline.
+- C8-C10 evaluation: next; answer accuracy has not yet been calculated.
 - DoLA and CAD: planned after the baseline is reproducible and evaluated.
 
-No full-baseline GPU run is currently authorized. Every new GPU action requires
-specific approval before submission.
+### Full baseline generation result
+
+| Model and setting | Raw outputs | Parsed labels | Missing-content failures | 128-token ceiling hits |
+|---|---:|---:|---:|---:|
+| Mistral S1 | 1,000 | 1,000 | 0 | 0 |
+| Mistral S2 | 1,000 | 1,000 | 0 | 6 |
+| BioMistral S1 | 1,000 | 1,000 | 0 | 34 |
+| BioMistral S2 | 1,000 | 999 | 5 | 25 |
+| **Total** | **4,000** | **3,999** | **5** | **65** |
+
+All four GPU generation steps completed in 1 hour 49 minutes. Slurm marked the
+wrapper job as failed only because the first validator split at a valid Unicode
+line-separator character inside biomedical text. The raw files were not
+damaged: all 4,000 JSON records validate, and a streaming validator fix now has
+test coverage. The strict zero-failure readiness flag remains false, while the
+observed 0.125% overall missing-content rate remains visible for evaluation.
+
+Every new GPU action still requires specific approval before submission.
 
 ## Running the project
 
