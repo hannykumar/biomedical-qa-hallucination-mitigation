@@ -14,11 +14,6 @@ if [[ $# -lt 5 || $# -gt 6 ]]; then
     usage
     exit 2
 fi
-if [[ "$(uname -s)" != "Darwin" ]]; then
-    echo "run this script from the local Mac" >&2
-    exit 2
-fi
-
 TARGET="$1"
 REMOTE_DIR="$2"
 RUN_PREFIX="$3"
@@ -34,6 +29,10 @@ POLL_SECONDS="${POLL_SECONDS:-15}"
 [[ "${MAX_NEW_TOKENS}" =~ ^[1-9][0-9]*$ ]] || { echo "MAX_NEW_TOKENS must be a positive integer" >&2; exit 2; }
 [[ "${WALLTIME}" =~ ^([0-9]+-)?[0-9]{1,2}:[0-5][0-9]:[0-5][0-9]$ ]] || { echo "WALLTIME must use HH:MM:SS or D-HH:MM:SS" >&2; exit 2; }
 [[ "${POLL_SECONDS}" =~ ^[1-9][0-9]*$ ]] || { echo "POLL_SECONDS must be a positive integer" >&2; exit 2; }
+if [[ "$(uname -s)" != "Darwin" ]]; then
+    echo "run this script from the local Mac" >&2
+    exit 2
+fi
 
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 cd "${PROJECT_ROOT}"
