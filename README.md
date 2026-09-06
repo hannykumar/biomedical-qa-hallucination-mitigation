@@ -8,6 +8,7 @@ Mistral-7B-Instruct-v0.1. C4 implements resumable S1/S2 standard generation.
 Its four-combination smoke suite completed, but the original minimal prompt
 failed the label-format and output-length readiness gate. Prompt version 2 now
 requires an explicit final label and no more than three explanation sentences.
+C7 parses raw generations into separate, auditable derivative files.
 
 ## C1 dataset setup
 
@@ -109,12 +110,12 @@ load either model.
 
 ### Automated baseline smoke suite
 
-From macOS, one command runs the four five-sample C4 pilots sequentially on one
-A40: both fixed models with S1 and S2. It synchronizes only Git-tracked files,
+From macOS, one command runs four C4 pilots sequentially on one A40: both fixed
+models with S1 and S2. It synchronizes only Git-tracked files,
 reuses one temporary password-authenticated SSH connection, runs dependency-light
 checks, polls Slurm, and downloads logs, JSONL, manifests, and a readiness summary.
-This diagnostic suite explicitly uses 256 maximum new tokens; the stored baseline
-default remains 128 for the later 1,000-example run.
+The sample limit and maximum token count are explicit command arguments and are
+recorded in each run manifest.
 The Slurm job has a two-hour safety ceiling; this is separate from Codex account
 usage and actual GPU time stops when the job finishes. The temporary connection
 closes when the command exits, and results remain Git-ignored under `outputs/`:
@@ -123,7 +124,9 @@ closes when the command exits, and results remain Git-ignored under `outputs/`:
 ./cluster/run_standard_smoke_suite_remote.sh \
   USER@login-1.gpu.cit-ec.net \
   /homes/USER/biomed-hallucination \
-  UNIQUE_RUN_PREFIX
+  UNIQUE_RUN_PREFIX \
+  SAMPLE_LIMIT \
+  MAX_NEW_TOKENS
 ```
 
 Running this command submits one GPU job containing all four pilots. Obtain
@@ -133,4 +136,20 @@ persistent passwordless access. If the local connection is interrupted, Slurm
 continues and keeps completed artifacts on university storage. Rerun the same
 command and run prefix after reconnecting; the saved job ID resumes polling and
 collection without submitting another job. The downloaded `RUN_PREFIX.sacct.txt`
-records actual GPU-job elapsed time.
+records actual GPU-job elapsed time. After collection, C7 parses the downloaded
+records and writes a grouped parser summary automatically.
+
+## C7 output parsing
+
+Parse one or more raw C4 JSONL files without changing them:
+
+```bash
+python3 -m src.generation.parse_outputs \
+  outputs/generations/standard/RUN_PREFIX-*.jsonl \
+  --summary-path outputs/generations/parsed/RUN_PREFIX.parser-summary.json
+```
+
+Parsed records retain every raw field and add the extracted label, explanation,
+parser status/errors, parser version, and exact/normalized/noncompliant format
+classification. The summary reports failures separately for each model and
+setting. This step is CPU-only.

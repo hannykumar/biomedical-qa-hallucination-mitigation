@@ -3,14 +3,14 @@
 set -euo pipefail
 
 usage() {
-    echo "usage: $0 USER@HOST REMOTE_PROJECT_DIR RUN_PREFIX" >&2
+    echo "usage: $0 USER@HOST REMOTE_PROJECT_DIR RUN_PREFIX SAMPLE_LIMIT MAX_NEW_TOKENS" >&2
 }
 
 if [[ ${1:-} == "--help" ]]; then
     usage
     exit 0
 fi
-if [[ $# -ne 3 ]]; then
+if [[ $# -ne 5 ]]; then
     usage
     exit 2
 fi
@@ -22,11 +22,15 @@ fi
 TARGET="$1"
 REMOTE_DIR="$2"
 RUN_PREFIX="$3"
+SAMPLE_LIMIT="$4"
+MAX_NEW_TOKENS="$5"
 POLL_SECONDS="${POLL_SECONDS:-15}"
 
 [[ "${TARGET}" =~ ^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+$ ]] || { echo "invalid USER@HOST" >&2; exit 2; }
 [[ "${REMOTE_DIR}" =~ ^/[A-Za-z0-9._/-]+$ ]] || { echo "REMOTE_PROJECT_DIR must be an absolute simple path" >&2; exit 2; }
 [[ "${RUN_PREFIX}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$ ]] || { echo "invalid RUN_PREFIX" >&2; exit 2; }
+[[ "${SAMPLE_LIMIT}" =~ ^[1-9][0-9]*$ ]] || { echo "SAMPLE_LIMIT must be a positive integer" >&2; exit 2; }
+[[ "${MAX_NEW_TOKENS}" =~ ^[1-9][0-9]*$ ]] || { echo "MAX_NEW_TOKENS must be a positive integer" >&2; exit 2; }
 [[ "${POLL_SECONDS}" =~ ^[1-9][0-9]*$ ]] || { echo "POLL_SECONDS must be a positive integer" >&2; exit 2; }
 
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
@@ -37,7 +41,7 @@ if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
 fi
 
 CODE_REVISION="$(git rev-parse HEAD)"
-mkdir -p outputs/cluster outputs/generations/standard
+mkdir -p outputs/cluster outputs/generations/standard outputs/generations/parsed
 JOB_ID_FILE="outputs/cluster/${RUN_PREFIX}.job_id"
 TEMP_DIR="$(mktemp -d)"
 CONTROL_SOCKET="${TEMP_DIR}/ssh"
@@ -75,7 +79,7 @@ else
 
     echo "Submitting the approved four-run GPU smoke suite..."
     JOB_ID="$("${SSH[@]}" \
-        "cd '${REMOTE_DIR}' && mkdir -p outputs/cluster && sbatch --parsable cluster/standard_smoke_suite.sbatch '${RUN_PREFIX}' '${CODE_REVISION}'")"
+        "cd '${REMOTE_DIR}' && mkdir -p outputs/cluster && sbatch --parsable cluster/standard_smoke_suite.sbatch '${RUN_PREFIX}' '${CODE_REVISION}' '${SAMPLE_LIMIT}' '${MAX_NEW_TOKENS}'")"
     [[ "${JOB_ID}" =~ ^[0-9]+$ ]] || { echo "unexpected Slurm job ID: ${JOB_ID}" >&2; exit 1; }
     printf '%s\n' "${JOB_ID}" >"${JOB_ID_FILE}"
 fi
@@ -115,11 +119,17 @@ rsync -av -e "${RSYNC_SSH}" \
     "${TARGET}:${REMOTE_DIR}/outputs/cluster/${RUN_PREFIX}.summary.json" \
     outputs/cluster/
 
+python3 -m src.generation.parse_outputs \
+    outputs/generations/standard/"${RUN_PREFIX}"-*.jsonl \
+    --summary-path "outputs/cluster/${RUN_PREFIX}.parser-summary.json"
+
 shasum -a 256 \
     outputs/generations/standard/"${RUN_PREFIX}"-* \
+    outputs/generations/parsed/"${RUN_PREFIX}"-* \
     "outputs/cluster/${RUN_PREFIX}.summary.json" \
+    "outputs/cluster/${RUN_PREFIX}.parser-summary.json" \
     "${JOB_ID_FILE}" \
     "outputs/cluster/${RUN_PREFIX}.sacct.txt" \
     "outputs/cluster/c4-suite-${JOB_ID}.out" \
     "outputs/cluster/c4-suite-${JOB_ID}.err"
-echo "CLUSTER_SMOKE_SUITE_COMPLETE job_id=${JOB_ID} summary=outputs/cluster/${RUN_PREFIX}.summary.json"
+echo "CLUSTER_SMOKE_SUITE_COMPLETE job_id=${JOB_ID} summary=outputs/cluster/${RUN_PREFIX}.summary.json parser_summary=outputs/cluster/${RUN_PREFIX}.parser-summary.json"
