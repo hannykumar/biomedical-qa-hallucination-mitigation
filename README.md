@@ -1,124 +1,205 @@
 # Biomedical QA Hallucination Mitigation
 
-This repository studies whether standard decoding, DoLA, CAD, and a later hybrid method can reduce hallucinated biomedical claims in PubMedQA explanations.
+This project tests whether different decoding methods can make biomedical
+question answering more accurate and better grounded in the supplied medical
+evidence.
 
-C1-C3 establish the pinned PubMedQA data contract, versioned prompts, and a
-verified university-A40 runtime for BioMistral-7B and
-Mistral-7B-Instruct-v0.1. C4 implements resumable S1/S2 standard generation.
-Its four-combination smoke suite completed, but the original minimal prompt
-failed the label-format and output-length readiness gate. Prompt version 3 now
-requires exactly two fields and one concise explanation sentence.
-C7 parses raw generations into separate, auditable derivative files.
+## Project in one minute
 
-## C1 dataset setup
+For each PubMedQA example, we have:
 
-The dataset build requires Python plus Hugging Face `datasets` and
-`huggingface_hub`. Dependency versions will be pinned after the university
-environment is inspected.
+- a biomedical question;
+- a research context that may help answer it;
+- a gold label: `yes`, `no`, or `maybe`; and
+- a gold long answer written from the source evidence.
 
-From the repository root, build the complete pinned dataset:
+We ask two 7B language models to answer the same examples, first without the
+context and then with it. Later, we will repeat the comparison with DoLA, CAD,
+and a possible hybrid method.
+
+```text
+PubMedQA question and optional context
+        ↓
+Model generates a yes/no/maybe label and a short explanation
+        ↓
+C7 safely extracts the label and explanation
+        ↓
+Evaluation compares them with the gold label and gold long answer
+```
+
+The two fixed models are:
+
+- `BioMistral/BioMistral-7B`
+- `mistralai/Mistral-7B-Instruct-v0.1`
+
+## What one test means
+
+The latest smoke test used 25 questions in four combinations:
+
+| Model | S1: question only | S2: question + context |
+|---|---:|---:|
+| Mistral | 25 outputs | 25 outputs |
+| BioMistral | 25 outputs | 25 outputs |
+| **Total** | **50 outputs** | **50 outputs** |
+
+Therefore, 25 questions produced 100 outputs. The future full standard
+baseline will use all 1,000 questions and produce 4,000 outputs:
+`1,000 questions × 2 models × 2 settings`.
+
+## Experiment roadmap
+
+| ID | Model input | Decoding method | Status |
+|---|---|---|---|
+| S1 | Question only | Standard | Smoke-tested |
+| S2 | Question + context | Standard | Smoke-tested |
+| S3 | Question only | DoLA | Planned |
+| S4 | Question + context | DoLA | Planned |
+| S5 | Context contrasted with no context | CAD | Planned |
+| S6 | Question + context | CAD + DoLA-inspired hybrid | Later |
+
+We complete and evaluate the standard S1/S2 baseline before implementing DoLA
+or CAD. This gives those later methods a trustworthy comparison point.
+
+## Prompt evolution
+
+The answer prompt was improved through three small GPU tests.
+
+### Version 1 — minimal instruction
+
+```text
+Question: {question}
+
+Answer the question and explain your reasoning briefly.
+```
+
+This allowed too much freedom. Only 8 of 20 outputs started with a usable
+answer label, and 4 reached the 256-token ceiling.
+
+### Version 2 — structured answer
+
+```text
+Question: {question}
+
+Your first line must be exactly one of:
+Final answer: yes
+Final answer: no
+Final answer: maybe
+Your second line must begin with "Explanation:" and contain no more than three concise sentences.
+```
+
+This improved label formatting, but BioMistral still omitted required content
+and many answers became too long.
+
+### Version 3 — short, mandatory answer
+
+Version 3 is the selected baseline prompt. The question-only form is:
+
+```text
+Question: {question}
+
+Respond with exactly two lines and no other text.
+Line 1 must be exactly one of:
+Final answer: yes
+Final answer: no
+Final answer: maybe
+Line 2 must begin with "Explanation:" and contain exactly one concise sentence.
+Always include both lines. Do not stop after line 1. Do not begin with "Explanation:".
+```
+
+S2 uses the same instruction but adds `Context: {context}` before the question.
+The authoritative current templates are in
+[`configs/prompts.yaml`](configs/prompts.yaml).
+
+## Prompt smoke-test results
+
+| Prompt | Questions | Outputs | Labels found | Missing-content failures | Exact two-line format | Token-ceiling hits |
+|---|---:|---:|---:|---:|---:|---:|
+| v1, minimal | 5 | 20 | 8/20 prefix signal | Not yet measured by C7 | Not measured | 4/20 at 256 tokens |
+| v2, structured | 25 | 100 | 92/100 | 15/100 | 27/100 | 18/100 at 128 tokens |
+| **v3, concise** | **25** | **100** | **100/100** | **1/100** | **50/100** | **2/100 at 120 tokens** |
+
+Versions 2 and 3 used the same 25 questions, so their results are directly
+comparable. Version 3 reduced missing-content failures from 15% to 1% and
+token-ceiling hits from 18% to 2%.
+
+We accept the observed 1% missing-content rate and will use prompt version 3
+for the full baseline candidate. The incomplete record will remain visible in
+the results; it will not be guessed, repaired, or silently removed. The two
+120-token ceiling hits are also reported separately. The stored full-baseline
+default remains 128 tokens.
+
+### Important: formatting is not accuracy
+
+`100/100 labels found` does **not** mean the model achieved 100% accuracy. It
+only means C7 could read a `yes`, `no`, or `maybe` label from every output.
+
+Accuracy will be calculated later by comparing each parsed model label with
+the dataset's gold label. Explanation quality will be compared with the gold
+long answer using ROUGE-L, BERTScore, cosine similarity, and output length.
+These similarity scores are useful comparison signals, but they are not direct
+proof that an explanation is free of hallucinations.
+
+## Current status
+
+- C1 dataset preparation: complete for all 1,000 examples.
+- C2 prompt construction: complete; version 3 selected.
+- C3 model and university A40 setup: complete for both models.
+- C4 standard generation: 25-question smoke test complete; full run pending.
+- C7 output parser: complete and integrated into smoke-test collection.
+- C8-C10 evaluation: planned after the full standard baseline is generated.
+- DoLA and CAD: planned after the baseline is reproducible and evaluated.
+
+No full-baseline GPU run is currently authorized. Every new GPU action requires
+specific approval before submission.
+
+## Running the project
+
+### Build the dataset and run local tests
+
+The dataset build requires Python, Hugging Face `datasets`, and
+`huggingface_hub`:
 
 ```bash
 python3 -m src.data.load_pubmedqa
-```
-
-Run the dependency-light unit tests:
-
-```bash
 python3 -m unittest discover -s tests -v
 ```
 
-The build produces:
+The build creates these Git-ignored reproducible artifacts:
 
 - `data/processed/pubmedqa_labeled_clean.csv`
 - `data/processed/pubmedqa_labeled_clean.metadata.json`
 - `reports/dataset_inspection.md`
 
-The CSV and manifest are reproducible generated artifacts and are ignored by
-Git. The inspection report is versioned.
+A limited dataset smoke build must use separate output paths so it cannot
+replace the complete 1,000-example artifacts.
 
-For a limited smoke build, provide separate paths for all three artifacts;
-the command rejects limited runs that could overwrite the canonical full-data
-outputs.
-
-## C2 prompt setup
-
-Load the validated prompt configuration once, then build either approved prompt
-type from a normalized C1 example:
+### Build a prompt
 
 ```python
 from src.prompts.build_prompts import build_prompt, load_prompt_config
 
 config = load_prompt_config()
-built = build_prompt(
-    example,
-    prompt_type="question_context",
-    config=config,
-)
+built = build_prompt(example, prompt_type="question_context", config=config)
 
 print(built.text)
 print(built.metadata())
 ```
 
-`BuiltPrompt` contains exact text plus the prompt type, version, format,
-template SHA-256, and rendered-prompt SHA-256. C2 intentionally does not apply
-a tokenizer chat template; that model-specific serialization is decided during
-C3/C4.
+Every built prompt records its type, version, format, template SHA-256, and
+rendered-prompt SHA-256.
 
-## C3 model setup
+### University GPU setup
 
-The cluster-specific procedure is documented in
-[reports/university_gpu_setup.md](reports/university_gpu_setup.md). C3 targets
-one A40 in the Slurm `gpu` partition, uses the pinned environment in
-`environment-c3.yml`, and keeps Hugging Face model caches in compute-local
-`$SLURM_JOB_TMP`.
+The cluster procedure is documented in
+[`reports/university_gpu_setup.md`](reports/university_gpu_setup.md). Both
+pinned models have successfully loaded in BF16 and generated text on an A40.
+Model loading and generation are CUDA-only; local tests use fakes.
 
-Local dependency-light validation:
+### Run the automated baseline smoke suite
 
-```bash
-python3 -m unittest discover -s tests -v
-bash -n cluster/inspect_cluster.sbatch cluster/model_smoke.sbatch
-```
-
-On the cluster, after creating the environment and `outputs/cluster/`:
-
-```bash
-sbatch cluster/inspect_cluster.sbatch
-sbatch cluster/model_smoke.sbatch mistral_7b_instruct_v01
-sbatch cluster/model_smoke.sbatch biomistral_7b
-```
-
-C3 is complete: both pinned model revisions loaded in BF16 on allocated A40
-GPUs and produced nonempty deterministic smoke completions.
-
-## C4 standard baseline generation
-
-`src/generation/run_generation.py` reads the normalized C1 CSV, resolves S1 or
-S2, builds the C2 prompt, calls `src/decoding/standard.py`, and appends one raw
-JSONL record per completed sample. Re-running the same immutable run skips
-completed sample IDs and rejects changed manifests or duplicate records.
-
-The pilot script is intentionally limited to five examples. It must be
-submitted only after explicit approval for that GPU action:
-
-```bash
-sbatch cluster/standard_pilot.sbatch MODEL_KEY S1\|S2 RUN_ID CODE_REVISION
-```
-
-Model loading and generation are CUDA-only. Local tests use fakes and never
-load either model.
-
-### Automated baseline smoke suite
-
-From macOS, one command runs four C4 pilots sequentially on one A40: both fixed
-models with S1 and S2. It synchronizes only Git-tracked files,
-reuses one temporary password-authenticated SSH connection, runs dependency-light
-checks, polls Slurm, and downloads logs, JSONL, manifests, and a readiness summary.
-The sample limit and maximum token count are explicit command arguments and are
-recorded in each run manifest.
-The Slurm job has a two-hour safety ceiling; this is separate from Codex account
-usage and actual GPU time stops when the job finishes. The temporary connection
-closes when the command exits, and results remain Git-ignored under `outputs/`:
+From macOS, this command synchronizes committed files, runs both models under
+S1 and S2 sequentially in one Slurm job, validates the results, and downloads
+the raw and parsed artifacts:
 
 ```bash
 ./cluster/run_standard_smoke_suite_remote.sh \
@@ -129,19 +210,13 @@ closes when the command exits, and results remain Git-ignored under `outputs/`:
   MAX_NEW_TOKENS
 ```
 
-Running this command submits one GPU job containing all four pilots. Obtain
-approval for that specific suite before invoking it. Enter the password only at
-the terminal's hidden SSH prompt; the script never stores it or creates
-persistent passwordless access. If the local connection is interrupted, Slurm
-continues and keeps completed artifacts on university storage. Rerun the same
-command and run prefix after reconnecting; the saved job ID resumes polling and
-collection without submitting another job. The downloaded `RUN_PREFIX.sacct.txt`
-records actual GPU-job elapsed time. After collection, C7 parses the downloaded
-records and writes a grouped parser summary automatically.
+Obtain explicit approval for that specific GPU suite before running it. The
+password is entered only at the terminal's hidden SSH prompt and is never
+stored. If SSH disconnects, Slurm continues; rerunning the same command with
+the same prefix resumes monitoring and collection without submitting a second
+job.
 
-## C7 output parsing
-
-Parse one or more raw C4 JSONL files without changing them:
+### Parse raw outputs on CPU
 
 ```bash
 python3 -m src.generation.parse_outputs \
@@ -149,7 +224,6 @@ python3 -m src.generation.parse_outputs \
   --summary-path outputs/generations/parsed/RUN_PREFIX.parser-summary.json
 ```
 
-Parsed records retain every raw field and add the extracted label, explanation,
-parser status/errors, parser version, and exact/normalized/noncompliant format
-classification. The summary reports failures separately for each model and
-setting. This step is CPU-only.
+C7 preserves every raw field and writes separate parsed JSONL files containing
+the extracted label, explanation, parser status, errors, and format class. Raw
+model outputs are never overwritten.
