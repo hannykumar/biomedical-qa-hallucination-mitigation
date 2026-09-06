@@ -3,14 +3,14 @@
 set -euo pipefail
 
 usage() {
-    echo "usage: $0 USER@HOST REMOTE_PROJECT_DIR RUN_PREFIX SAMPLE_LIMIT MAX_NEW_TOKENS" >&2
+    echo "usage: $0 USER@HOST REMOTE_PROJECT_DIR RUN_PREFIX SAMPLE_LIMIT MAX_NEW_TOKENS [WALLTIME]" >&2
 }
 
 if [[ ${1:-} == "--help" ]]; then
     usage
     exit 0
 fi
-if [[ $# -ne 5 ]]; then
+if [[ $# -lt 5 || $# -gt 6 ]]; then
     usage
     exit 2
 fi
@@ -24,6 +24,7 @@ REMOTE_DIR="$2"
 RUN_PREFIX="$3"
 SAMPLE_LIMIT="$4"
 MAX_NEW_TOKENS="$5"
+WALLTIME="${6:-02:00:00}"
 POLL_SECONDS="${POLL_SECONDS:-15}"
 
 [[ "${TARGET}" =~ ^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+$ ]] || { echo "invalid USER@HOST" >&2; exit 2; }
@@ -31,6 +32,7 @@ POLL_SECONDS="${POLL_SECONDS:-15}"
 [[ "${RUN_PREFIX}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$ ]] || { echo "invalid RUN_PREFIX" >&2; exit 2; }
 [[ "${SAMPLE_LIMIT}" =~ ^[1-9][0-9]*$ ]] || { echo "SAMPLE_LIMIT must be a positive integer" >&2; exit 2; }
 [[ "${MAX_NEW_TOKENS}" =~ ^[1-9][0-9]*$ ]] || { echo "MAX_NEW_TOKENS must be a positive integer" >&2; exit 2; }
+[[ "${WALLTIME}" =~ ^([0-9]+-)?[0-9]{1,2}:[0-5][0-9]:[0-5][0-9]$ ]] || { echo "WALLTIME must use HH:MM:SS or D-HH:MM:SS" >&2; exit 2; }
 [[ "${POLL_SECONDS}" =~ ^[1-9][0-9]*$ ]] || { echo "POLL_SECONDS must be a positive integer" >&2; exit 2; }
 
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
@@ -77,9 +79,9 @@ else
     "${SSH[@]}" \
         "cd '${REMOTE_DIR}' && source \"\${HOME}/miniconda3/etc/profile.d/conda.sh\" && conda activate biomed-hallucination && python -m unittest discover -s tests -v && bash -n cluster/standard_smoke_suite.sbatch"
 
-    echo "Submitting the approved four-run GPU smoke suite..."
+    echo "Submitting the approved four-run GPU suite with walltime ${WALLTIME}..."
     JOB_ID="$("${SSH[@]}" \
-        "cd '${REMOTE_DIR}' && mkdir -p outputs/cluster && sbatch --parsable cluster/standard_smoke_suite.sbatch '${RUN_PREFIX}' '${CODE_REVISION}' '${SAMPLE_LIMIT}' '${MAX_NEW_TOKENS}'")"
+        "cd '${REMOTE_DIR}' && mkdir -p outputs/cluster && sbatch --parsable --time='${WALLTIME}' cluster/standard_smoke_suite.sbatch '${RUN_PREFIX}' '${CODE_REVISION}' '${SAMPLE_LIMIT}' '${MAX_NEW_TOKENS}'")"
     [[ "${JOB_ID}" =~ ^[0-9]+$ ]] || { echo "unexpected Slurm job ID: ${JOB_ID}" >&2; exit 1; }
     printf '%s\n' "${JOB_ID}" >"${JOB_ID_FILE}"
 fi

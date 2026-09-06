@@ -207,8 +207,13 @@ the raw and parsed artifacts:
   /homes/USER/biomed-hallucination \
   UNIQUE_RUN_PREFIX \
   SAMPLE_LIMIT \
-  MAX_NEW_TOKENS
+  MAX_NEW_TOKENS \
+  WALLTIME
 ```
+
+`WALLTIME` is optional and defaults to `02:00:00` for smoke tests. The prepared
+full baseline uses `SAMPLE_LIMIT=1000`, `MAX_NEW_TOKENS=128`, and
+`WALLTIME=18:00:00`, producing 4,000 outputs sequentially on one A40.
 
 Obtain explicit approval for that specific GPU suite before running it. The
 password is entered only at the terminal's hidden SSH prompt and is never

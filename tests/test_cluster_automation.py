@@ -22,9 +22,29 @@ class ClusterAutomationTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0)
         self.assertIn(
-            "USER@HOST REMOTE_PROJECT_DIR RUN_PREFIX SAMPLE_LIMIT MAX_NEW_TOKENS",
+            "USER@HOST REMOTE_PROJECT_DIR RUN_PREFIX SAMPLE_LIMIT MAX_NEW_TOKENS [WALLTIME]",
             result.stderr,
         )
+
+    def test_rejects_invalid_walltime_without_connecting(self) -> None:
+        result = subprocess.run(
+            [
+                "bash",
+                "cluster/run_standard_smoke_suite_remote.sh",
+                "user@example.org",
+                "/remote/project",
+                "run",
+                "1000",
+                "128",
+                "18-hours",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("WALLTIME must use", result.stderr)
 
     def test_ready_summary_requires_four_complete_aligned_runs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
