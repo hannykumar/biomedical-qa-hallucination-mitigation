@@ -133,7 +133,7 @@ default remains 128 tokens.
 `100/100 labels found` does **not** mean the model achieved 100% accuracy. It
 only means C7 could read a `yes`, `no`, or `maybe` label from every output.
 
-Accuracy will be calculated later by comparing each parsed model label with
+Accuracy is calculated by comparing each parsed model label with
 the dataset's gold label. Explanation quality will be compared with the gold
 long answer using ROUGE-L, BERTScore, cosine similarity, and output length.
 These similarity scores are useful comparison signals, but they are not direct
@@ -149,7 +149,7 @@ proof that an explanation is free of hallucinations.
 - C8 final-label accuracy: complete for all 4,000 baseline outputs.
 - C9 ROUGE-L and output-length evaluation: complete for all 4,000 outputs.
 - C10 BERTScore and cosine-similarity evaluation: complete for 3,995 available explanations.
-- Combined Phase 1 MVP results table: next.
+- Combined Phase 1 MVP results table: complete for all four model/setting groups.
 - DoLA and CAD: planned after the baseline is reproducible and evaluated.
 
 ### Full baseline generation result
@@ -331,3 +331,16 @@ conda create --prefix .venv --channel conda-forge --override-channels \
 C10 enforces the pinned package and model revisions in
 `configs/evaluation.yaml`, records that provenance in every result, and leaves
 missing explanations unscored.
+
+### Combine the Phase 1 results on CPU
+
+```bash
+python3 -m src.evaluation.run_eval \
+  --accuracy-table outputs/tables/RUN_PREFIX-label-accuracy.csv \
+  --overlap-table outputs/tables/RUN_PREFIX-rouge-l-length.csv \
+  --semantic-table outputs/tables/RUN_PREFIX-semantic.csv \
+  --output-path outputs/tables/RUN_PREFIX-phase1-results.csv
+```
+
+The join rejects unexpected schemas, missing or duplicate model/setting groups,
+and disagreements in shared counts before atomically writing the combined CSV.
