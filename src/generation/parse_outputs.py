@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-PARSER_VERSION = 1
+PARSER_VERSION = 2
 DEFAULT_OUTPUT_DIR = Path("outputs/generations/parsed")
 LABEL_PREFIX = re.compile(
     r"^\s*(?:final\s+answer\s*:\s*)?(yes|no|maybe)"
@@ -31,11 +31,13 @@ class OutputParseError(ValueError):
     """Raised when a raw JSONL artifact violates the C4 record contract."""
 
 
-def parse_raw_output(raw_output: str) -> dict[str, Any]:
+def parse_raw_output(raw_output: str, *, prompt_format: str = "structured") -> dict[str, Any]:
     """Extract the leading label and marked explanation without inferring either."""
 
     if not isinstance(raw_output, str):
         raise OutputParseError("raw_output must be a string")
+    if prompt_format == "json":
+        return _parse_json_output(raw_output)
 
     errors: list[str] = []
     explanation_matches = list(EXPLANATION_MARKER.finditer(raw_output))
@@ -82,13 +84,72 @@ def parse_raw_output(raw_output: str) -> dict[str, Any]:
     }
 
 
+def _parse_json_output(raw_output: str) -> dict[str, Any]:
+    """Decode one strict JSON object; never repair or infer model content."""
+
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate JSON key")
+            result[key] = value
+        return result
+
+    def reject_constant(value: str) -> None:
+        raise ValueError(f"nonstandard JSON constant: {value}")
+
+    errors: list[str] = []
+    label, answer = "unknown", ""
+    try:
+        payload = json.loads(
+            raw_output, object_pairs_hook=unique_object, parse_constant=reject_constant
+        )
+    except (ValueError, RecursionError):
+        errors.append("invalid_json")
+    else:
+        if not isinstance(payload, dict):
+            errors.append("invalid_json_object")
+        else:
+            if set(payload) != {"decision", "long_answer"}:
+                errors.append("invalid_json_keys")
+            decision = payload.get("decision")
+            if "decision" not in payload:
+                errors.append("missing_label")
+            elif not isinstance(decision, str) or decision not in {"yes", "no", "maybe"}:
+                errors.append("malformed_label")
+            else:
+                label = decision
+            long_answer = payload.get("long_answer")
+            if "long_answer" not in payload:
+                errors.append("missing_explanation")
+            elif not isinstance(long_answer, str) or not long_answer.strip():
+                errors.append("malformed_explanation")
+            else:
+                answer = long_answer.strip()
+    return {
+        "parsed_final_answer": label,
+        # Stable evaluation interface: this is the JSON long_answer, not the gold answer.
+        "parsed_explanation": answer,
+        "parser_version": PARSER_VERSION,
+        "parser_status": "error" if errors else "ok",
+        "parser_errors": errors,
+        "prompt_format_compliance": "noncompliant" if errors else "exact",
+    }
+
+
 def parse_record(record: Mapping[str, Any]) -> dict[str, Any]:
     """Retain the complete raw record and append parser-owned fields."""
 
     for field in ("sample_id", "model_key", "setting_id"):
         if not isinstance(record.get(field), str) or not record[field]:
             raise OutputParseError(f"{field} must be a nonempty string")
-    return {**record, **parse_raw_output(record.get("raw_output"))}
+    return {
+        **record,
+        **parse_raw_output(
+            record.get("raw_output"),
+            prompt_format=record.get("prompt_format", "structured"),
+        ),
+    }
 
 
 def parse_files(
@@ -179,6 +240,9 @@ def parse_files(
                         "malformed_label",
                         "missing_explanation",
                         "malformed_explanation",
+                        "invalid_json",
+                        "invalid_json_object",
+                        "invalid_json_keys",
                     )
                 },
                 "parser_failure_rate": counts["parser_failures"] / total,

@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.generation.parse_outputs import parse_raw_output
+from src.generation.parse_outputs import parse_record
 
 
 RUNS = (
@@ -39,7 +39,7 @@ def validate_smoke_suite(
             (base / f"{run_id}.manifest.json").read_text(encoding="utf-8")
         )
         sample_ids = [record["sample_id"] for record in records]
-        parsed = [parse_raw_output(record["raw_output"]) for record in records]
+        parsed = [parse_record(record) for record in records]
         expected_max = manifest["generation"]["max_new_tokens"]
         expected_prompt = "question_only" if setting_id == "S1" else "question_context"
         configuration_matches = all(

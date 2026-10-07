@@ -92,8 +92,22 @@ class ClusterAutomationTests(unittest.TestCase):
                 )
 
             summary = validate_smoke_suite("suite", base)
+            for model_key, setting_id in RUNS:
+                path = base / f"suite-{model_key}-{setting_id}.jsonl"
+                with path.open(encoding="utf-8") as source:
+                    records = [json.loads(line) for line in source]
+                for record in records:
+                    record["prompt_format"] = "json"
+                    record["raw_output"] = '{"decision":"yes","long_answer":"Complete answer."}'
+                path.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
+            json_summary = validate_smoke_suite("suite", base)
+            records[0]["raw_output"] = '{"decision":"yes"'
+            path.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
+            broken_summary = validate_smoke_suite("suite", base)
 
         self.assertTrue(summary["ready_for_full_baseline"])
+        self.assertTrue(json_summary["ready_for_full_baseline"])
+        self.assertFalse(broken_summary["ready_for_full_baseline"])
         self.assertEqual(len(summary["runs"]), 4)
 
 

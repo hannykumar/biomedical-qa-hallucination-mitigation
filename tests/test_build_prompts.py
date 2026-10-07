@@ -24,9 +24,9 @@ class PromptBuilderTests(unittest.TestCase):
         cls.config = load_prompt_config()
         cls.example = normalize_pubmedqa_record(source_record(), source_row_index=0)
 
-    def test_loads_approved_version_three_configuration(self) -> None:
-        self.assertEqual(self.config.version, 3)
-        self.assertEqual(self.config.prompt_format, "structured")
+    def test_loads_version_four_json_configuration(self) -> None:
+        self.assertEqual(self.config.version, 4)
+        self.assertEqual(self.config.prompt_format, "json")
         self.assertEqual(self.config.source_path, "configs/prompts.yaml")
 
     def test_builds_exact_question_only_prompt(self) -> None:
@@ -39,15 +39,9 @@ class PromptBuilderTests(unittest.TestCase):
         self.assertEqual(
             built.text,
             "Question: Does the intervention help?\n\n"
-            "Respond with exactly two lines and no other text.\n"
-            "Line 1 must be exactly one of:\n"
-            "Final answer: yes\n"
-            "Final answer: no\n"
-            "Final answer: maybe\n"
-            'Line 2 must begin with "Explanation:" and contain exactly one concise '
-            "sentence.\n"
-            "Always include both lines. Do not stop after line 1. Do not begin with "
-            '"Explanation:".',
+            + JSON_INSTRUCTION + '\nSet "decision" to "yes", "no", or "maybe". Use "maybe" if uncertain.\n'
+            'Write one concise sentence in "long_answer". Always include both fields.\n'
+            'Do not include Markdown, commentary, or text outside the JSON object.',
         )
         self.assertNotIn("Background evidence", built.text)
         self.assertFalse(built.text.endswith("\n"))
@@ -63,15 +57,11 @@ class PromptBuilderTests(unittest.TestCase):
             built.text,
             "Context: Background evidence.\n\nResults evidence.\n\n"
             "Question: Does the intervention help?\n\n"
-            "Respond with exactly two lines and no other text.\n"
-            "Line 1 must be exactly one of:\n"
-            "Final answer: yes\n"
-            "Final answer: no\n"
-            "Final answer: maybe\n"
-            'Line 2 must begin with "Explanation:" and contain exactly one concise '
-            "sentence.\n"
-            "Always include both lines. Do not stop after line 1. Do not begin with "
-            '"Explanation:".',
+            + JSON_INSTRUCTION + '\nSet "decision" to "yes", "no", or "maybe" based only on the context.\n'
+            'Use "maybe" if the context does not support a clear yes or no.\n'
+            'Write one concise sentence in "long_answer" supported only by the context.\n'
+            'Copy a relevant sentence as-is if it directly answers the question; otherwise summarize the evidence without adding facts.\n'
+            'Always include both fields. Do not include Markdown, commentary, or text outside the JSON object.',
         )
         self.assertFalse(built.text.endswith("\n"))
 
@@ -89,8 +79,8 @@ class PromptBuilderTests(unittest.TestCase):
 
         self.assertEqual(first.sample_id, self.example.sample_id)
         self.assertEqual(first.prompt_type, "question_context")
-        self.assertEqual(first.prompt_version, 3)
-        self.assertEqual(first.prompt_format, "structured")
+        self.assertEqual(first.prompt_version, 4)
+        self.assertEqual(first.prompt_format, "json")
         self.assertEqual(len(first.template_sha256), 64)
         self.assertEqual(len(first.prompt_sha256), 64)
         self.assertEqual(first.template_sha256, second.template_sha256)
@@ -99,8 +89,8 @@ class PromptBuilderTests(unittest.TestCase):
             first.metadata(),
             {
                 "prompt_type": "question_context",
-                "prompt_version": 3,
-                "prompt_format": "structured",
+                "prompt_version": 4,
+                "prompt_format": "json",
                 "template_sha256": first.template_sha256,
                 "prompt_sha256": first.prompt_sha256,
             },
@@ -158,6 +148,12 @@ class PromptConfigurationTests(unittest.TestCase):
 
         with self.assertRaisesRegex(PromptConfigurationError, "whitespace"):
             load_temporary_config(payload)
+
+
+JSON_INSTRUCTION = (
+    'Return only one valid JSON object with exactly two string fields:\n'
+    '{"decision":"yes","long_answer":"One concise sentence answering the question."}'
+)
 
 
 def valid_config_payload() -> dict[str, object]:

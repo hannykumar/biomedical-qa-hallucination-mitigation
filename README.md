@@ -92,7 +92,7 @@ and many answers became too long.
 
 ### Version 3 — short, mandatory answer
 
-Version 3 is the selected baseline prompt. The question-only form is:
+Version 3 was used for the completed historical baseline. The question-only form is:
 
 ```text
 Question: {question}
@@ -107,8 +107,43 @@ Always include both lines. Do not stop after line 1. Do not begin with "Explanat
 ```
 
 S2 uses the same instruction but adds `Context: {context}` before the question.
-The authoritative current templates are in
-[`configs/prompts.yaml`](configs/prompts.yaml).
+Historical artifacts retain version 3's exact text and hashes.
+
+### Version 4 — JSON baseline candidate
+
+Current templates in [`configs/prompts.yaml`](configs/prompts.yaml) request one
+JSON object with two string fields, `decision` and `long_answer`:
+
+```json
+{"decision":"yes","long_answer":"One concise answer sentence."}
+```
+
+The prompt remains instruction text stored in YAML; the **model response** is
+JSON. Python code does not need to become JSON. S1 requests a concise answer,
+using `maybe` when uncertain. S2 uses only supplied evidence, copying a relevant
+sentence when directly responsive and otherwise summarizing without adding facts.
+Gold answers are never included in model inputs.
+
+The full-reference extraction audit found **0/1,000** gold long answers in their
+contexts, even after case/whitespace normalization. This does not mean contexts
+lack evidence; we cannot require extraction of the complete gold reference.
+Reproduce the audit with `python3 -m src.data.inspect_context`.
+
+Parser version 2 routes by `prompt_format`, maps `decision` to
+`parsed_final_answer` and `long_answer` to `parsed_explanation`, and preserves
+every raw field. Invalid/truncated JSON, duplicate keys, nonstandard constants,
+extra text, and invalid fields/types remain failures without repair. Historical
+two-line outputs remain supported. Valid explicit fields survive other schema
+errors; unreadable JSON yields `unknown` and an empty explanation.
+
+Version 4 is locally tested; GPU testing is pending. First obtain approval for a
+25-question/four-setting pilot at 128 tokens. Review and freeze settings before
+separately approving the 1,000-question/four-setting rerun. Use distinct prefixes
+and compare identical ordered IDs with version 3. Report prompt and length changes
+alongside scores; similarity is not a hallucination rate. Raw JSONL already saves
+question, context, gold targets, exact prompt, raw output, token counts and model/
+prompt provenance. Manifests save code and runtime identity. Generated artifacts
+and private continuity notes stay uncommitted.
 
 ## Prompt smoke-test results
 
@@ -118,8 +153,9 @@ The authoritative current templates are in
 | v2, structured | 25 | 100 | 92/100 | 15/100 | 27/100 | 18/100 at 128 tokens |
 | **v3, concise** | **25** | **100** | **100/100** | **1/100** | **50/100** | **2/100 at 120 tokens** |
 
-Versions 2 and 3 used the same 25 questions, so their results are directly
-comparable. Version 3 reduced missing-content failures from 15% to 1% and
+Versions 2 and 3 used the same 25 questions but different token ceilings
+(128 versus 120), so this is not a pure prompt-only comparison. Version 3
+reduced missing-content failures from 15% to 1% and
 token-ceiling hits from 18% to 2%.
 
 We accept the observed 1% missing-content rate and will use prompt version 3
@@ -142,7 +178,7 @@ proof that an explanation is free of hallucinations.
 ## Current status
 
 - C1 dataset preparation: complete for all 1,000 examples.
-- C2 prompt construction: complete; version 3 selected.
+- C2 prompt construction: version 3 baseline complete; version 4 JSON candidate locally tested.
 - C3 model and university A40 setup: complete for both models.
 - C4 standard generation: complete for all 4,000 baseline outputs.
 - C7 output parser: complete for the full baseline.

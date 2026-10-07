@@ -7,10 +7,43 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.generation.parse_outputs import OutputParseError, parse_files, parse_raw_output
+from src.generation.parse_outputs import OutputParseError, parse_files, parse_raw_output, parse_record
 
 
 class OutputParserTests(unittest.TestCase):
+    def test_json_routes_by_record_metadata_and_preserves_raw(self) -> None:
+        raw = '{"decision":"no","long_answer":"Evidence with \\"quotes\\" and β."}'
+        record = {"sample_id": "one", "model_key": "model", "setting_id": "S2",
+                  "prompt_format": "json", "raw_output": raw, "context": "Evidence."}
+        parsed = parse_record(record)
+        self.assertEqual(parsed["raw_output"], raw)
+        self.assertEqual(parsed["context"], "Evidence.")
+        self.assertEqual(parsed["parsed_final_answer"], "no")
+        self.assertEqual(parsed["parsed_explanation"], 'Evidence with "quotes" and β.')
+        self.assertEqual(parsed["parser_status"], "ok")
+        self.assertEqual(parsed["prompt_format_compliance"], "exact")
+
+    def test_json_rejects_syntax_wrappers_duplicates_and_wrong_schema(self) -> None:
+        valid = '{"decision":"yes","long_answer":"Evidence."}'
+        bad = [valid[:-1], '```json\n' + valid + '\n```', valid + ' trailing',
+               '{"decision":"yes","decision":"no","long_answer":"Evidence."}',
+               '[]', 'null', '{"decision":true,"long_answer":12}',
+               '{"decision":"YES","long_answer":""}',
+               '{"decision":"yes","long_answer":"Evidence.","extra":1}',
+               '{"decision":"yes","long_answer":NaN}']
+        for raw in bad:
+            with self.subTest(raw=raw):
+                parsed = parse_raw_output(raw, prompt_format="json")
+                self.assertEqual(parsed["parser_status"], "error")
+                self.assertEqual(parsed["prompt_format_compliance"], "noncompliant")
+        self.assertEqual(parse_raw_output(valid[:-1], prompt_format="json")["parsed_final_answer"], "unknown")
+
+    def test_json_keeps_explicit_label_when_answer_missing(self) -> None:
+        parsed = parse_raw_output('{"decision":"maybe"}', prompt_format="json")
+        self.assertEqual(parsed["parsed_final_answer"], "maybe")
+        self.assertEqual(parsed["parsed_explanation"], "")
+        self.assertIn("missing_explanation", parsed["parser_errors"])
+
     def test_exact_and_observed_normalized_formats(self) -> None:
         exact = parse_raw_output("Final answer: yes\nExplanation: Supported.")
         same_line = parse_raw_output(

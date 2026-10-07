@@ -23,17 +23,7 @@ class MistralFormattingTests(unittest.TestCase):
 
         self.assertEqual(
             serialized,
-            "<s>[INST] Context: Background evidence.\n\nResults evidence.\n\n"
-            "Question: Does the intervention help?\n\n"
-            "Respond with exactly two lines and no other text.\n"
-            "Line 1 must be exactly one of:\n"
-            "Final answer: yes\n"
-            "Final answer: no\n"
-            "Final answer: maybe\n"
-            'Line 2 must begin with "Explanation:" and contain exactly one concise '
-            "sentence.\n"
-            "Always include both lines. Do not stop after line 1. Do not begin with "
-            '"Explanation:". [/INST]',
+            "<s>[INST] " + prompt.text + " [/INST]",
         )
         self.assertEqual(serialized.count("<s>"), 1)
         self.assertEqual(serialized.count("[INST]"), 1)
