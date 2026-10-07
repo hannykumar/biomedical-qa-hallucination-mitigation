@@ -136,9 +136,23 @@ extra text, and invalid fields/types remain failures without repair. Historical
 two-line outputs remain supported. Valid explicit fields survive other schema
 errors; unreadable JSON yields `unknown` and an empty explanation.
 
-Version 4 is locally tested; GPU testing is pending. First obtain approval for a
-25-question/four-setting pilot at 128 tokens. Review and freeze settings before
-separately approving the 1,000-question/four-setting rerun. Use distinct prefixes
+Version 4 completed a 25-question/four-combination A40 pilot at 128 tokens in
+8 minutes 30 seconds. All 100 outputs were saved; 99 satisfy the JSON schema.
+One BioMistral S2 response reached 128 tokens before closing its JSON object.
+It remains an explicit parser failure, unknown decision and missing long answer.
+The strict readiness check remains false. The user explicitly accepted this
+limitation and separately approved the full rerun with unchanged v4/128 settings.
+The full run is in progress; no full version 4 results are available yet.
+
+| Model | Input | Correct decisions | Valid JSON |
+|---|---|---:|---:|
+| Mistral | Question only | 17/25 | 25/25 |
+| Mistral | With context | 21/25 | 25/25 |
+| BioMistral | Question only | 14/25 | 25/25 |
+| BioMistral | With context | 19/25 | 24/25 |
+
+These are pilot accuracies, not full-dataset results. Schema compliance does not
+verify sentence count, factuality or evidence support. Keep distinct run prefixes
 and compare identical ordered IDs with version 3. Report prompt and length changes
 alongside scores; similarity is not a hallucination rate. Raw JSONL already saves
 question, context, gold targets, exact prompt, raw output, token counts and model/
