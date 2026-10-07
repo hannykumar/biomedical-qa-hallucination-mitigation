@@ -142,7 +142,7 @@ One BioMistral S2 response reached 128 tokens before closing its JSON object.
 It remains an explicit parser failure, unknown decision and missing long answer.
 The strict readiness check remains false. The user explicitly accepted this
 limitation and separately approved the full rerun with unchanged v4/128 settings.
-The full run is in progress; no full version 4 results are available yet.
+The pilot results below are separate from the completed full run.
 
 | Model | Input | Correct decisions | Valid JSON |
 |---|---|---:|---:|
@@ -158,6 +158,39 @@ alongside scores; similarity is not a hallucination rate. Raw JSONL already save
 question, context, gold targets, exact prompt, raw output, token counts and model/
 prompt provenance. Manifests save code and runtime identity. Generated artifacts
 and private continuity notes stay uncommitted.
+
+### Version 4 — full baseline evaluation
+
+The full four-setting A40 run saved all **4,000 outputs** and completed
+successfully in **2 hours 10 minutes 8 seconds**. Each setting uses the same
+1,000 questions, fixed model/tokenizer revisions and greedy 128-token cap as v3.
+
+| Model | Input | v3 accuracy | v4 accuracy | ROUGE-L | BERTScore F1 | Cosine | Valid JSON |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Mistral | Question only | 47.5% | 49.8% | 0.2077 | 0.6785 | 0.9500 | 997/1,000 |
+| Mistral | With context | 68.7% | 69.6% | 0.2371 | 0.6842 | 0.9556 | 989/1,000 |
+| BioMistral | Question only | 54.8% | 54.3% | 0.2005 | 0.6764 | 0.9424 | 998/1,000 |
+| BioMistral | With context | 70.8% | 58.3% | 0.2271 | 0.6829 | 0.9507 | 953/1,000 |
+
+Results are mixed: ROUGE-L and BERTScore improve in all four settings, but
+decision accuracy improves only for Mistral. BioMistral with context loses
+12.5 percentage points. On the same 953 schema-valid v4 examples, v3 gets
+678 decisions correct and v4 gets 583, so JSON failures alone do not explain
+the regression. Format and grounding instructions changed together; this is
+not a pure JSON-format ablation or evidence of reduced hallucination.
+
+There are 63 schema/syntax failures, 60 unknown decisions and 49 token-cap hits.
+Unknowns count as incorrect among all 1,000 questions. All 63 missing long
+answers remain null; similarity means score 997/989/998/953 answers respectively
+in the table's row order. Mean whole-response token counts are
+38.949/52.194/42.013/52.595, including JSON overhead. None of the 7,874 scored
+prediction/reference texts was truncated by the pinned semantic encoders.
+
+Ignored local artifacts use prefix `c4-json-v4-full-981563c`: `*-results.csv`
+preserves metric dispersion and provenance, `*-paired-comparison.csv` compares
+common nonmissing explanations, and `*-review.md` / `*-examples.md` document
+limitations and qualitative cases. Raw outputs are unchanged. No direct
+hallucination rate, NLI evaluator or DoLA result is claimed.
 
 ## Prompt smoke-test results
 
@@ -192,7 +225,7 @@ proof that an explanation is free of hallucinations.
 ## Current status
 
 - C1 dataset preparation: complete for all 1,000 examples.
-- C2 prompt construction: version 3 baseline complete; version 4 JSON candidate locally tested.
+- C2 prompt construction: version 3 historical baseline and version 4 JSON full baseline evaluated; mixed outcomes reported above.
 - C3 model and university A40 setup: complete for both models.
 - C4 standard generation: complete for all 4,000 baseline outputs.
 - C7 output parser: complete for the full baseline.
